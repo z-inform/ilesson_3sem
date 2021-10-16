@@ -77,8 +77,10 @@ int print_dir(char* name, char* opts){
             if (!(!strcmp(file -> d_name, ".") || !strcmp(file -> d_name, "..")))
                 print_dir(file -> d_name, opts);
         }
-        print_file(file -> d_name, opts);
-        printf("\n");
+        if (file -> d_name[0] != '.' || opts[0]) {
+            print_file(file -> d_name, opts);
+            printf("\n");
+        }
     }
     return 0;
 }
