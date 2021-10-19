@@ -13,6 +13,7 @@ extern int optind;
 
 int print_dir(char* name, char* opts);
 int print_file(char* name, char* opts);
+int read_dir(DIR* dir, struct dirent** file);
 
 int main(int argc, char* argv[]){
     char options[5] = {0}; //alinR
@@ -57,29 +58,57 @@ int print_file(char* name, char* opts){
 }
 
 int print_dir(char* name, char* opts){
+    int status = 0;
     DIR* cur_dir = opendir(name);
+    struct dirent* file;
     if (cur_dir == NULL) {
         perror("uls (dir error)");
         return -1;
     }
+    if (opts[4]) 
+        printf("%s:\n", name);
     while(1){
-        errno = 0;
-        struct dirent* file = readdir(cur_dir);
-        if (file == NULL) {
-            if (errno != 0) {
-                perror("uls (file error)");
-                return -1;
-            } else {
-                break;
-            }
-        } 
-        if (opts[4] && (file -> d_type == DT_DIR)) {
-            if (!(!strcmp(file -> d_name, ".") || !strcmp(file -> d_name, "..")))
-                print_dir(file -> d_name, opts);
-        }
+        status = read_dir(cur_dir, &file);
+        if (status != 0) break;
         if (file -> d_name[0] != '.' || opts[0]) {
             print_file(file -> d_name, opts);
             printf("\n");
+        }
+    }
+    if (opts[4]) {
+        printf("\n");
+        rewinddir(cur_dir);
+        while(1){
+            status = read_dir(cur_dir, &file);
+            if (status != 0) break;
+            if (file -> d_type == DT_DIR) {
+                if (!(!strcmp(file -> d_name, ".") || !strcmp(file -> d_name, ".."))){
+                    if (!(file -> d_name[0] == '.' && !opts[0])){
+                        unsigned int name_len = strlen(name) + strlen(file -> d_name) + 2;
+                        char full_dir[name_len];
+                        full_dir[0] = 0;
+                        strcat(full_dir, name);
+                        strcat(full_dir, file -> d_name);
+                        full_dir[name_len - 2] = '/';
+                        full_dir[name_len - 1] = 0;
+                        print_dir(full_dir, opts);
+                    }
+                }
+            }
+        }
+    }
+    return status;
+}
+
+int read_dir(DIR* dir, struct dirent** file){
+    errno = 0;
+    *file = readdir(dir);
+    if (*file == NULL) {
+        if (errno != 0) {
+            perror("file error");
+            return -1;
+        } else {
+            return 1;
         }
     }
     return 0;
