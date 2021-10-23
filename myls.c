@@ -9,14 +9,24 @@
 #include <stdlib.h>
 #include <string.h>
 
+typedef unsigned char uchar;
+
 extern int optind;
 
-int print_dir(char* name, char* opts);
-int print_file(char* name, char* opts);
+struct keys{
+    uchar op_all;
+    uchar op_long;
+    uchar op_inode;
+    uchar op_numeric;
+    uchar op_rec;
+};
+
+int print_dir(char* name, struct keys opts);
+int print_file(char* name, struct keys opts);
 int read_dir(DIR* dir, struct dirent** file);
 
+
 int main(int argc, char* argv[]){
-    char options[5] = {0}; //alinR
     struct option opts[6] = {{ .name = "all", .has_arg = 0, .flag = NULL, .val = 'a'},
                              { .name = "long", .has_arg = 0, .flag = NULL, .val = 'l'},
                              { .name = "inode", .has_arg = 0, .flag = NULL, .val = 'i'},
@@ -24,19 +34,22 @@ int main(int argc, char* argv[]){
                              { .name = "recursive", .has_arg = 0, .flag = NULL, .val = 'R'},
                              {0}};
 
+    struct keys options = {0};
+        
+
     int status;
     do{
         status = getopt_long(argc, argv, "alinR", opts, NULL);
         switch (status) {
-            case 'a': options[0] = 1;
+            case 'a': options.op_all = 1;
                       break;
-            case 'l': options[1] = 1;
+            case 'l': options.op_long = 1;
                       break;
-            case 'i': options[2] = 1;
+            case 'i': options.op_inode = 1;
                       break;
-            case 'n': options[3] = 1;
+            case 'n': options.op_numeric = 1;
                       break;
-            case 'R': options[4] = 1;
+            case 'R': options.op_rec = 1;
                       break;
         }
     }while(status != -1);
@@ -50,14 +63,14 @@ int main(int argc, char* argv[]){
     return 0;
 }
 
-int print_file(char* name, char* opts){
+int print_file(char* name, struct keys opts){
     struct stat statbuf;
     lstat(name, &statbuf);
     printf("%s ", name);
     return 0;
 }
 
-int print_dir(char* name, char* opts){
+int print_dir(char* name, struct keys opts){
     int status = 0;
     DIR* cur_dir = opendir(name);
     struct dirent* file;
@@ -65,17 +78,17 @@ int print_dir(char* name, char* opts){
         perror("uls (dir error)");
         return -1;
     }
-    if (opts[4]) 
+    if (opts.op_rec) 
         printf("%s:\n", name);
     while(1){
         status = read_dir(cur_dir, &file);
         if (status != 0) break;
-        if (file -> d_name[0] != '.' || opts[0]) {
+        if (file -> d_name[0] != '.' || opts.op_all) {
             print_file(file -> d_name, opts);
             printf("\n");
         }
     }
-    if (opts[4]) {
+    if (opts.op_rec) {
         printf("\n");
         rewinddir(cur_dir);
         while(1){
@@ -83,7 +96,7 @@ int print_dir(char* name, char* opts){
             if (status != 0) break;
             if (file -> d_type == DT_DIR) {
                 if (!(!strcmp(file -> d_name, ".") || !strcmp(file -> d_name, ".."))){
-                    if (!(file -> d_name[0] == '.' && !opts[0])){
+                    if (!(file -> d_name[0] == '.' && opts.op_all)){
                         unsigned int name_len = strlen(name) + strlen(file -> d_name) + 2;
                         char full_dir[name_len];
                         full_dir[0] = 0;
