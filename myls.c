@@ -4,6 +4,9 @@
 #include <unistd.h>
 #include <getopt.h>
 #include <errno.h>
+#include <grp.h>
+#include <pwd.h>
+#include <time.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,7 +16,7 @@ typedef unsigned char uchar;
 
 extern int optind;
 
-struct keys{
+struct arg_struct{
     uchar op_all;
     uchar op_long;
     uchar op_inode;
@@ -21,8 +24,8 @@ struct keys{
     uchar op_rec;
 };
 
-int print_dir(char* name, struct keys opts);
-int print_file(char* name, struct keys opts);
+int print_dir(char* name, struct arg_struct opts);
+int print_file(char* name, struct arg_struct opts);
 int read_dir(DIR* dir, struct dirent** file);
 
 
@@ -34,7 +37,7 @@ int main(int argc, char* argv[]){
                              { .name = "recursive", .has_arg = 0, .flag = NULL, .val = 'R'},
                              {0}};
 
-    struct keys options = {0};
+    struct arg_struct options = {0};
         
 
     int status;
@@ -48,6 +51,7 @@ int main(int argc, char* argv[]){
             case 'i': options.op_inode = 1;
                       break;
             case 'n': options.op_numeric = 1;
+                      options.op_long = 1;
                       break;
             case 'R': options.op_rec = 1;
                       break;
@@ -63,14 +67,98 @@ int main(int argc, char* argv[]){
     return 0;
 }
 
-int print_file(char* name, struct keys opts){
+int print_file(char* name, struct arg_struct opts){
     struct stat statbuf;
-    lstat(name, &statbuf);
+    if (opts.op_inode) {
+        lstat(name, &statbuf);
+        if (errno) {
+            perror("lstat error");
+            return -1;
+        }
+        printf("%lu ", statbuf.st_ino);
+    }
+    if (opts.op_long) {
+        lstat(name, &statbuf);
+        if (errno) {
+            perror("lstat error");
+            return -1;
+        }
+        switch (S_IFMT & statbuf.st_mode) {
+            case S_IFIFO:
+                printf("p");
+                break;
+            case S_IFCHR:
+                printf("c");
+                break;
+            case S_IFDIR:
+                printf("d");
+                break;
+            case S_IFBLK:
+                printf("b");
+                break;
+            case S_IFREG:
+                printf("-");
+                break;
+            case S_IFLNK:
+                printf("l");
+                break;
+            case S_IFSOCK:
+                printf("s");
+                break;
+            default:
+                printf("?");
+        }
+
+    for(int i = 8; i >= 0; i--){
+        if (statbuf.st_mode & (1 << i)) {
+            switch ((i + 1) % 3) {
+                case 0: 
+                    printf("r");
+                    break;
+                case 1: 
+                    printf("x");
+                    break;
+                case 2:
+                    printf("w");
+                    break;
+            }
+        } else 
+            printf("-");
+    }
+
+    printf(" %lu ", statbuf.st_nlink);
+    
+    if (!opts.op_numeric) {
+        errno = 0;
+        struct passwd* pass = getpwuid(statbuf.st_uid);
+        if (!errno)
+            printf("%s ", pass->pw_name);
+        else printf("? ");
+        errno = 0;
+        struct group* gr = getgrgid(statbuf.st_gid);
+        if (!errno)
+            printf("%s ", gr->gr_name);
+        else printf("? ");
+    } else 
+        printf("%d %d ", statbuf.st_uid, statbuf.st_gid);
+
+    printf("%6lu ", statbuf.st_size);
+
+    char time_str[15] = {0};
+    if (strftime(time_str, 15, "%b %d %H:%M", gmtime(&statbuf.st_mtime)) == 0) //timestamps work somewhat strange
+        printf("?");
+    else
+        printf("%s ", time_str);
+
     printf("%s ", name);
+
+    } else {
+        printf("%s ", name);
+    }
     return 0;
 }
 
-int print_dir(char* name, struct keys opts){
+int print_dir(char* name, struct arg_struct opts){
     int status = 0;
     DIR* cur_dir = opendir(name);
     struct dirent* file;
@@ -80,6 +168,7 @@ int print_dir(char* name, struct keys opts){
     }
     if (opts.op_rec) 
         printf("%s:\n", name);
+
     while(1){
         status = read_dir(cur_dir, &file);
         if (status != 0) break;
@@ -88,6 +177,7 @@ int print_dir(char* name, struct keys opts){
             printf("\n");
         }
     }
+
     if (opts.op_rec) {
         printf("\n");
         rewinddir(cur_dir);
