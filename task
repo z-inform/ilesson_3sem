@@ -1,0 +1,9 @@
+ls с аргументами
+-a --all
+-l --long
+-i --inode
+-n --numeric
+-R --recursive
+
+время создания ctime(t) -> string
+strftime();
