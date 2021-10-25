@@ -1,0 +1,6 @@
+getuid();
+getgid();
+getgroups();
+getpwduid();
+getgruid();
+getgrouplist();
