@@ -10,8 +10,8 @@
 
 int main(int argc, char* argv[]){
         
-    int sem_id = semget(IPC_PRIVATE, 4, 0660); //yacht; ramp; single ride ended; all rides ended
-    unsigned short init_array[4] = {0, 0, 1, 1};
+    int sem_id = semget(IPC_PRIVATE, 3, 0660); //yacht; ramp; single ride ended; all rides ended
+    unsigned short init_array[4] = {0, 0, 1};
     semctl(sem_id, 0, SETALL, init_array);
 
     
@@ -32,9 +32,6 @@ int main(int argc, char* argv[]){
     if (pass_num < seats_num) 
         seats_num = pass_num;
 
-    //struct sembuf init[4] = {{0, 0, 0}, {1, 0, 0}, {2, 0, 0}, {3, 1, 0}};
-    //semop(sem_id, init, 4); //init semaphor values
-    
     struct sembuf get_on[3] = {{1, -1, 0}, {0, -1, 0}, {2, 0, 0}};
     struct sembuf get_off[2] = {{1, -1, 0}, {0, 1, 0}};
     struct sembuf free_ramp = {1, 1, 0};
@@ -51,20 +48,6 @@ int main(int argc, char* argv[]){
         if (id){
             printf("[%d] Passenger registered\n", getpid());
             while(1){
-                //struct sembuf check_all_end = {3, 0, IPC_NOWAIT};
-                struct sembuf wait_end = {2, 0, 0};
-                /*
-                if (semop(sem_id, &check_all_end, 1) == -1) { //check if rides have ended
-                    if (errno != EAGAIN) {
-                        perror("semaphore error");
-                        return -1;
-                    }
-                } else {
-                    printf("[%d] died\n", getpid());
-                    return 0;
-                }
-                */
-
                 if ((semop(sem_id, get_on, 3) == -1) && (errno == EIDRM)) {//wait to get on the yacht             
                     printf("[%d] died\n", getpid());
                     return 0;
@@ -72,7 +55,6 @@ int main(int argc, char* argv[]){
 
                 semop(sem_id, &free_ramp, 1);
                 printf("[%d] got on the yacht\n", getpid());
-                //semop(sem_id, &wait_end, 1); //wait for the ride to end
                 semop(sem_id, get_off, 2); //exit the yacht
                 semop(sem_id, &free_ramp, 1);
                 printf("[%d] exited the yacht\n", getpid());
@@ -101,24 +83,13 @@ int main(int argc, char* argv[]){
     }
 
     printf("Last ride\n");
-    /*
-    struct sembuf end_rides = {3, -1, 0};
-    if (semop(sem_id, &end_rides, 1) == -1) {
-        perror("closing semaphor error");
-        return -1;
-    }
 
-    while (wait(NULL) > 0) {};
-    */
     printf("All closed\n");
     if (semctl(sem_id, IPC_RMID, 0) == -1) {
         perror("semaphor removal error");
         return -1;
     }
     printf("Captain left\n");
-    
-
-
 
     return 0;
 }
