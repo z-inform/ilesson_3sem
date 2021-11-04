@@ -26,7 +26,6 @@ int main(int argc, char* argv[]){
                              { .name = "force", .has_arg = 0, .flag = NULL, .val = 'f' },
                              { .name = "interactive", .has_arg = 0, .flag = NULL, .val = 'i' },
                              {0}};
-    struct stat filestat;
 
     int status = getopt_long(argc, argv, "vfi", opts, NULL); 
     while( status != -1 ){
@@ -43,13 +42,19 @@ int main(int argc, char* argv[]){
 
 
     if( (argc - optind) > 2 ){
-        stat(argv[argc - 1], &filestat);
-        if( S_ISDIR(filestat.st_mode) != 0 ){
-            printf("%s is not a directory\n", argv[argc - 1]);
+        errno = 0;
+        struct stat dirstat;
+        if ((stat(argv[argc - 1], &dirstat) != -1) && (S_ISDIR(dirstat.st_mode) == 1))
+            for(int i = optind; i < argc - 1; i++){
+                f2fcp(argv[i], argv[argc - 1], verbose, force, interactive);
+            }
+        else{
+            if (errno) {
+                perror("stat error");
+                return -1;
+            }
+            printf("Last arg is not a directory\n");
             return -1;
-        }
-        for(int i = optind; i < argc - 2; i++){
-            //copy to dir function
         }
     }
     else if( (argc - optind) == 2 ){
