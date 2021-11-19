@@ -28,7 +28,6 @@ int print_dir(char* name, struct arg_struct opts);
 int print_file(char* name, struct arg_struct opts);
 int read_dir(DIR* dir, struct dirent** file);
 
-
 int main(int argc, char* argv[]){
     struct option opts[6] = {{ .name = "all", .has_arg = 0, .flag = NULL, .val = 'a'},
                              { .name = "long", .has_arg = 0, .flag = NULL, .val = 'l'},
@@ -164,6 +163,7 @@ int print_dir(char* name, struct arg_struct opts){
     struct dirent* file;
     if (cur_dir == NULL) {
         perror("uls (dir error)");
+        printf("name: %s\n", name);
         return -1;
     }
     if (opts.op_rec) 
@@ -187,10 +187,19 @@ int print_dir(char* name, struct arg_struct opts){
             if (file -> d_type == DT_DIR) {
                 if (!(!strcmp(file -> d_name, ".") || !strcmp(file -> d_name, ".."))){
                     if (!(file -> d_name[0] == '.' && opts.op_all)){
-                        unsigned int name_len = strlen(name) + strlen(file -> d_name) + 2;
+                        size_t len = strlen(name);
+                        unsigned int name_len = len + strlen(file -> d_name) + 2;
+                        char endchar = name[len - 1];
+                        if (endchar != '/') { 
+                            name_len++;
+                        }
                         char full_dir[name_len];
                         full_dir[0] = 0;
                         strcat(full_dir, name);
+                        if (endchar != '/') {
+                            full_dir[len] = '/'; 
+                            full_dir[len + 1] = 0; 
+                        }
                         strcat(full_dir, file -> d_name);
                         full_dir[name_len - 2] = '/';
                         full_dir[name_len - 1] = 0;
