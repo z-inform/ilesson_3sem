@@ -10,8 +10,8 @@
 
 int main(int argc, char* argv[]){
         
-    int sem_id = semget(IPC_PRIVATE, 3, 0660); //yacht; ramp; single ride ended; all rides ended
-    unsigned short init_array[4] = {0, 0, 1};
+    int sem_id = semget(IPC_PRIVATE, 4, 0660); //yacht; ramp; ride ended; allow enter
+    unsigned short init_array[4] = {0, 0, 0, 1};
     semctl(sem_id, 0, SETALL, init_array);
 
     
@@ -32,9 +32,9 @@ int main(int argc, char* argv[]){
     if (pass_num < seats_num) 
         seats_num = pass_num;
 
-    struct sembuf get_on[3] = {{1, -1, 0}, {0, -1, 0}, {2, 0, 0}};
-    struct sembuf get_off[2] = {{1, -1, 0}, {0, 1, 0}};
-    struct sembuf free_ramp = {1, 1, 0};
+    struct sembuf get_on[3] = {{1, -1, 0}, {0, -1, 0}, {3, 0, 0}};
+    struct sembuf get_off[3] = {{1, -1, 0}, {0, 1, 0}, {2, 0, 0}};
+    struct sembuf free_ramp[1] = {{1, 1, 0}};
 
     for(int i = 0; i < pass_num; i++) {
 
@@ -48,43 +48,43 @@ int main(int argc, char* argv[]){
         if (id){
             printf("[%d] Passenger registered\n", getpid());
             while(1){
-                if ((semop(sem_id, get_on, 3) == -1) && (errno == EIDRM)) {//wait to get on the yacht             
+                if ((semop(sem_id, get_on, 3) == -1) && ((errno == EIDRM) || (errno == EINVAL))) {//wait to get on the yacht             
                     printf("[%d] died\n", getpid());
                     return 0;
                 }
 
-                semop(sem_id, &free_ramp, 1);
+                semop(sem_id, free_ramp, 1);
                 printf("[%d] got on the yacht\n", getpid());
-                semop(sem_id, get_off, 2); //exit the yacht
-                semop(sem_id, &free_ramp, 1);
+                semop(sem_id, get_off, 3); //exit the yacht
+                semop(sem_id, free_ramp, 1);
                 printf("[%d] exited the yacht\n", getpid());
             }
         }
     }
 
 
-    struct sembuf pass_on[3] = {{0, seats_num, 0}, {1, 1, 1}, {2, -1, 0}};
+    struct sembuf pass_on[4] = {{0, seats_num, 0}, {1, 1, 1}, {2, 1, 0}, {3, -1, -1}};
     struct sembuf wait_pass_on[2] = {{0, 0, 0}, {1, -1, 0}};
-    struct sembuf ride = {2, 1, 0}; //set 2 sem to let everyone out after ride
-    struct sembuf wait_off = {0, -seats_num, 0};
+    struct sembuf ride[2] = {{2, -1, 0}, {3, 1, 0}};
+    struct sembuf wait_off[1] = {{0, -seats_num, 0}};
     
     printf("Captain init the sem\n");
 
     for (int i = 0; i < ride_num; i++) {
         printf("Captain: Accepting passengers\n");
-        semop(sem_id, pass_on, 3);
+        semop(sem_id, pass_on, 4);
         semop(sem_id, wait_pass_on, 2);
+        usleep(5);
         printf("Captain: All passengers seated\n");
-        semop(sem_id, &ride, 1);
-        semop(sem_id, &free_ramp, 1);
+        semop(sem_id, ride, 2);
+        semop(sem_id, free_ramp, 1);
         printf("Captain: ride ended\n");
-        semop(sem_id, &wait_off, 1);
+        semop(sem_id, wait_off, 1);
+        usleep(5);
         printf("Captain: all off\n");
     }
 
-    printf("Last ride\n");
-
-    printf("All closed\n");
+    printf("Rides closed\n");
     if (semctl(sem_id, IPC_RMID, 0) == -1) {
         perror("semaphor removal error");
         return -1;
